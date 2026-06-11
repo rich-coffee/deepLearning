@@ -1,0 +1,11 @@
+# ============================================================
+#  深度学习期末作业 — 依赖清单
+#  CPU 版 PyTorch 安装命令:
+#    pip install --index-url https://download.pytorch.org/whl/cpu -r requirements.txt
+# ============================================================
+numpy
+websockets
+torch
+torchvision
+torchaudio
+wfdb              # MIT-BIH 生理信号数据读取（PhysioNet 标准格式）
