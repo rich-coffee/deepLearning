@@ -1,4 +1,4 @@
-# 🧠 深度学习期末作业 — 基于 RNN/GRU/LSTM 的生理信号预测与实时可视化系统
+# 基于 RNN/GRU/LSTM 的生理信号预测与实时可视化系统
 
 > **Neural Oscilloscope // SCADA Terminal**
 >
