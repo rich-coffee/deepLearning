@@ -106,7 +106,7 @@ python sever.py
 ✅ 我的做法: 读取本地 MIT-BIH 原始 .dat/.hea 文件
 ```
 
-- **数据来源**: MIT-BIH 心律失常数据库 Record 100（PhysioNet 标准格式）
+- **数据来源**: MIT-BIH 心律失常数据库 Record 100（PhysioNet 标准格式） 网址： https://physionet.org/content/mitdb/1.0.0/
 - **读取方式**: 使用 `wfdb` 库直接解析本地 `.dat` / `.hea` 文件，无需联网
 - **数据路径**: `100.dat` + `100.hea`（放在项目根目录）
 - **信号通道**: 提取 MLII 导联（最常用于心律失常分析的导联）
@@ -141,7 +141,8 @@ python sever.py
 
 > **本项目的训练数据 100% 来自真实生理信号。**
 
-- 数据文件 `100.dat`、`100.hea`、`100.atr` 来自 **MIT-BIH Arrhythmia Database**（麻省理工学院心律失常数据库，数据下载网址'https://physionet.org/content/mitdb/1.0.0/'），是生理信号处理领域最权威的公开基准数据集之一
+- 数据文件 `100.dat`、`100.hea`、`100.atr` 来自 **MIT-BIH Arrhythmia Database**（麻省理工学院心律失常数据库），是生理信号处理领域最权威的公开基准数据集之一
+- 数据下载网址 https://physionet.org/content/mitdb/1.0.0/
 - Record 100 包含约 30 分钟的二导联动态心电图记录，采样率 360 Hz
 - 训练结果截图保存在 `MIT-BIH_data/result/` 目录下，供验证
 
