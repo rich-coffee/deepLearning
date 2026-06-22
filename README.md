@@ -176,7 +176,7 @@ python compare_models.py
  我的做法: 读取本地 MIT-BIH 原始 .dat/.hea 文件
 ```
 
-- **数据来源**: MIT-BIH 心律失常数据库 Record 100（PhysioNet 标准格式）
+- **数据来源**: MIT-BIH 心律失常数据库 Record 100（PhysioNet 标准格式） 网址： https://physionet.org/content/mitdb/1.0.0/
 - **读取方式**: 使用 `wfdb` 库直接解析本地 `.dat` / `.hea` 文件，无需联网
 - **数据路径**: `100.dat` + `100.hea`（放在项目根目录）
 - **信号通道**: 提取 MLII 导联（最常用于心律失常分析的导联）
