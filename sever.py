@@ -3,6 +3,12 @@
  深度学习期末作业 — WebSocket 实时推理服务器
  加载 MIT-BIH 数据训练的 RNN/GRU/LSTM 模型，向前端推送实时预测波形
 =============================================================================
+【文件说明】
+  sever.py          本文件 — WebSocket 推理服务器，加载预训练权重并推送预测流
+  train.py          训练脚本 — 通过 MODEL_TYPE 变量切换 RNN/GRU/LSTM 架构
+  index.html        前端监控面板 — D3.js 示波器 + SCADA 遥测，d3.v7.min.js 本地化免 CDN
+  compare_models.py 模型横向对比工具 — 一键训练三模型，生成 7 张对比图表 + JSON 数据
+
 【自定义亮点】
   1. 独立权重路径 — 从 MIT-BIH_data/weight/ 读取预训练模型，与训练模块解耦
   2. 模拟 SCADA 遥测 — 构造工业标准的 JSON 数据帧 + 模拟网络延迟
@@ -21,7 +27,7 @@ import random
 # ==========================================
 # 工业现场配置 — SCADA 遥测终端参数
 # ==========================================
-MODEL_TYPE = 'GRU'  # 可选: 'RNN' | 'GRU' | 'LSTM'，与训练脚本保持一致
+MODEL_TYPE = 'RNN'  # 可选: 'RNN' | 'GRU' | 'LSTM'，与训练脚本保持一致
 # 【亮点】从独立目录加载 MIT-BIH 数据训练的权重，路径与训练脚本输出一致
 WEIGHTS_PATH = f'MIT-BIH_data\\weight\\sleep_{MODEL_TYPE.lower()}_weights.pth'
 HOST = "127.0.0.1"
