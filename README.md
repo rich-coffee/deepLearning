@@ -70,7 +70,7 @@ plt.savefig(f'MIT-BIH_data/result/MIT-BIH_{MODEL_TYPE}_training_curve.png', dpi=
 
 ### Live Oscilloscope Demo
 
-![Oscilloscope Demo](MIT-BIH_data/result/oscilloscope_demo.gif)
+![Oscilloscope Demo](./MIT-BIH_data/result/oscilloscope_demo.gif)
 
 > *The browser-based oscilloscope renders CH1 (yellow, ground truth) vs CH2 (green dashed, neural network prediction) side by side at ~30 FPS. The right-hand SCADA panel shows real-time error magnitude and link latency.*
 
