@@ -53,6 +53,12 @@
 
 > *运行 `python train.py` 并将 `MODEL_TYPE` 分别设为 `'RNN'`、`'GRU'`、`'LSTM'` 进行训练，然后将对比图保存至 `MIT-BIH_data/result/` 目录即可在此处展示。*
 
+### 示波器演示
+
+![示波器演示](MIT-BIH_data/result/oscilloscope_demo.gif)
+
+> *基于浏览器的示波器以约 30 FPS 的帧率并排渲染 CH1（黄色，地面真值/真实标签）与 CH2（绿色虚线，神经网络预测）。右侧的 SCADA（监视控制与数据采集）面板则实时显示误差幅值与链路延迟。*
+
 ### 训练 Loss 曲线
 
 运行训练脚本后，控制台会逐轮输出 train/val loss。如需生成论文级图表，可在 `train.py` 末尾添加或交互式运行：
