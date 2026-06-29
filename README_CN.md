@@ -69,7 +69,7 @@ plt.savefig(f'MIT-BIH_data/result/MIT-BIH_{MODEL_TYPE}_training_curve.png', dpi=
 
 ### 实时示波器演示
 
-![示波器演示](https://github.com/rich-coffee/deepLearning/raw/main/MIT-BIH_data/result/oscilloscope_demo.gif)
+![示波器演示](MIT-BIH_data/result/oscilloscope_demo.gif)
 
 > *浏览器端示波器以约 30 FPS 的刷新率实时渲染 CH1（黄色实线，真实波形）与 CH2（绿色虚线，神经网络预测值）的双通道对比。右侧 SCADA 面板同步显示实时绝对误差与链路延迟。*
 
