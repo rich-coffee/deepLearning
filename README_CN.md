@@ -1,55 +1,127 @@
-# 心电示波器 — 生理信号实时预测与可视化系统
+# 深度学习基础 — RNN / GRU / LSTM 实时生理信号预测系统
 
-> **RNN / GRU / LSTM 单步预测 + 浏览器端示波器监控**
->
-> 使用 MIT-BIH 心律失常数据库 Record 100 全量数据训练循环神经网络，并通过 WebSocket + D3.js 将预测结果实时推送至浏览器端工业人机界面。
+> **从理论到可视化：基于 PyTorch 实现的经典循环神经网络架构，使用真实心电数据训练，并通过浏览器端示波器实时呈现预测效果。**
 
 ---
 
-##  项目结构
+## 💡 项目初衷
+
+在深入学习和研究具身智能与 SLAM 系统的过程中，我对深度学习的基础框架产生了浓厚兴趣。为了从根本上理解循环神经网络的运作机制，我创建了此仓库，从零实现 RNN、GRU 和 LSTM 三种经典架构，并在真实生理信号上进行训练、对比与可视化诊断。
+
+---
+
+## 🔬 核心内容
+
+### 已复现的经典模型
+
+- **Vanilla RNN（Elman 网络）** — 最朴素的循环架构，作为理解梯度消失问题的基线模型
+- **GRU（门控循环单元）** — 比 LSTM 更轻量的门控方案，在效率与记忆能力之间取得平衡
+- **LSTM（长短期记忆网络）** — 序列建模的主力架构，通过遗忘门/输入门/输出门显式控制长程依赖
+
+三种架构共用一套**统一模型工厂**（[models.py](models.py) 中的 `SleepRNNDemo`），仅需修改一个字符串参数即可切换单元类型，而所有其他超参数保持不变——从而实现严格受控的架构对比实验。
+
+### 使用的框架与技术栈
+
+| 层级 | 技术 | 说明 |
+|---|---|---|
+| **深度学习框架** | PyTorch | 动态计算图，调试直观，GPU 支持完善 |
+| **数据管线** | `wfdb` + NumPy | 原生读取 PhysioNet 标准格式的 MIT-BIH 心电数据 |
+| **实时推流** | WebSocket（`websockets`） | 服务端→浏览器低延迟遥测推送（~30 FPS） |
+| **前端可视化** | D3.js v7（本地副本） | 高性能 SVG 渲染，零外部网络依赖 |
+| **页面布局** | 原生 HTML5 / CSS3 Flexbox | 自适应示波器 + 工业 SCADA 风格遥测面板 |
+
+### 训练特性
+
+- ✅ 使用 MIT-BIH Record 100 全部约 65 万个真实心电采样点进行全量训练
+- ✅ 75% 重叠滑窗采样策略——模型在信号的每一种相位对齐上都有充分样本
+- ✅ 按时间顺序 80/20 划分训练/验证集——杜绝未来信息泄漏
+- ✅ 小批量训练（兼容 GPU）+ 梯度裁剪（max norm = 1.0）
+- ✅ ReduceLROnPlateau 学习率自动衰减
+- ✅ 早停机制（patience 可配置）
+- ✅ 断点续训——训练中断后自动从上次 epoch 恢复，适应 HPC 集群资源回收
+- ✅ 按验证损失导出最佳模型，而非仅保留最后一轮权重
+
+---
+
+## 🖼️ 可视化
+
+### 训练结果对比
+
+| RNN | GRU | LSTM |
+|---|---|---|
+| ![RNN](MIT-BIH_data/result/MIT-BIH数据RNN训练结果.png) | ![GRU](MIT-BIH_data/result/MIT-BIH数据GRU训练结果.png) | ![LSTM](MIT-BIH_data/result/MIT-BIH数据LSTM训练结果.png) |
+
+> *运行 `python train.py` 并将 `MODEL_TYPE` 分别设为 `'RNN'`、`'GRU'`、`'LSTM'` 进行训练，然后将对比图保存至 `MIT-BIH_data/result/` 目录即可在此处展示。*
+
+### 训练 Loss 曲线
+
+运行训练脚本后，控制台会逐轮输出 train/val loss。如需生成论文级图表，可在 `train.py` 末尾添加或交互式运行：
+
+```python
+import matplotlib.pyplot as plt
+# （将每轮的 train_loss / val_loss 记录到列表中，然后：）
+plt.plot(train_losses, label='Train Loss')
+plt.plot(val_losses, label='Val Loss')
+plt.xlabel('Epoch'); plt.ylabel('MSE')
+plt.legend(); plt.title(f'{MODEL_TYPE} — MIT-BIH 心电预测 Loss 曲线')
+plt.savefig(f'MIT-BIH_data/result/MIT-BIH_{MODEL_TYPE}_training_curve.png', dpi=150)
+```
+
+### 实时示波器演示
+
+![示波器演示](MIT-BIH_data/result/oscilloscope_demo.gif)
+
+> *浏览器端示波器以约 30 FPS 的刷新率实时渲染 CH1（黄色实线，真实波形）与 CH2（绿色虚线，神经网络预测值）的双通道对比。右侧 SCADA 面板同步显示实时绝对误差与链路延迟。*
+
+**立即体验：**
+1. `python train.py` — 训练模型（或直接使用 `MIT-BIH_data/weight/` 中的预训练权重）
+2. `python sever.py` — 启动 WebSocket 推理服务器
+3. 用浏览器打开 `index.html` — 波形即刻开始渲染
+
+---
+
+## 📂 项目结构
 
 ```
 deepLearning/
-├── train.py                       # 训练脚本：MIT-BIH 全量数据 → RNN/GRU/LSTM 模型
-├── models.py                      # 共享模型工厂：SleepRNNDemo（train.py / sever.py 共用）
-├── data_loader.py                 # 数据管线：滑窗采样器 + PyTorch DataLoader
-├── sever.py                       # WebSocket 推理服务器：向前端推送实时预测流
-├── index.html                     # 前端面板：D3.js 示波器 + 遥测读数
-├── d3.v7.min.js                   # D3.js v7 本地副本（273 KB），无需 CDN
-├── requirements.txt               # Python 依赖清单
-├── .gitignore
-├── 100.dat / 100.hea / 100.atr    # MIT-BIH 心律失常数据库 Record 100（约 30 分钟心电）
+├── train.py                        # 训练脚本：MIT-BIH 全量数据 → RNN/GRU/LSTM
+├── models.py                       # 统一模型工厂（训练与推理共用）
+├── data_loader.py                  # 数据管线：信号读取 + 滑窗采样 + DataLoader
+├── sever.py                        # WebSocket 推理服务器（边缘计算遥测终端）
+├── index.html                      # D3.js 示波器 + SCADA 工业遥测面板
+├── d3.v7.min.js                    # D3.js v7 本地副本（273 KB，无需 CDN）
+├── requirements.txt                # Python 依赖清单
+├── 100.dat / 100.hea / 100.atr     # MIT-BIH 心律失常数据库 Record 100
 └── MIT-BIH_data/
-    ├── weight/
-    │   ├── sleep_rnn_weights.pth    # RNN 预训练权重
-    │   ├── sleep_gru_weights.pth    # GRU 预训练权重
-    │   └── sleep_lstm_weights.pth   # LSTM 预训练权重
-    └── result/
-        ├── MIT-BIH数据RNN训练结果.png
-        ├── MIT-BIH数据GRU训练结果.png
-        └── MIT-BIH数据LSTM训练结果.png
+    ├── weight/                     # 预训练权重（.pth 文件）
+    │   ├── sleep_rnn_weights.pth
+    │   ├── sleep_gru_weights.pth
+    │   └── sleep_lstm_weights.pth
+    └── result/                     # 训练曲线与架构对比图
 ```
 
 ---
 
-##  快速开始
+## 🚀 快速开始
 
 ### 环境要求
 
 - Python 3.10+
 - 现代浏览器（Chrome / Edge / Firefox）
+- （可选）NVIDIA GPU + CUDA 12.4，用于加速训练
 
 ### 1. 安装依赖
 
 ```bash
-# 创建并激活虚拟环境（推荐）
+# 创建并激活虚拟环境
 python -m venv .venv
-.venv\Scripts\activate   # Windows
+source .venv/bin/activate      # Linux/macOS
+# .venv\Scripts\activate       # Windows
 
-# ---- CPU 版（无需 NVIDIA 显卡）----
+# CPU 版（无需 NVIDIA 显卡）
 pip install --index-url https://download.pytorch.org/whl/cpu -r requirements.txt
 
-# ---- GPU 版（CUDA 12.4，推荐用于训练）----
+# GPU 版（CUDA 12.4，推荐用于训练）
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
 pip install -r requirements.txt
 ```
@@ -60,31 +132,20 @@ pip install -r requirements.txt
 python train.py
 ```
 
-修改 [train.py](train.py) 顶部的配置区可切换架构或调整超参数：
-
+修改 [train.py](train.py) 顶部的 `MODEL_TYPE` 切换架构：
 ```python
 MODEL_TYPE = 'LSTM'   # 可选: 'RNN' | 'GRU' | 'LSTM'
 ```
 
-**训练特性：**
+全量数据训练在 CPU 上约需 3–5 分钟，GPU 环境下显著更快。
 
-- **全量数据** — 使用 Record 100 全部约 65 万个采样点，滑窗生成数千条训练序列
-- **小批量训练** — 默认 batch_size=64，兼容 GPU 并行
-- **验证集评估** — 80/20 时间顺序切分，每轮评估泛化性能
-- **早停机制** — 验证损失连续 20 轮不改善自动终止
-- **学习率调度** — ReduceLROnPlateau 自动衰减学习率
-- **梯度裁剪** — 最大范数 1.0，防止深层 RNN 梯度爆炸
-- **断点续训** — 训练中断后自动从上次 epoch 恢复
-- **最佳模型导出** — 按验证损失保存最优权重
-
-### 3. 启动 WebSocket 推理服务器
+### 3. 启动推理服务器
 
 ```bash
 python sever.py
 ```
 
 成功启动后输出：
-
 ```
 =============================================
   [SYS] 工业级边缘计算遥测终端已启动
@@ -96,69 +157,38 @@ python sever.py
 
 ### 4. 打开前端监控面板
 
-直接用浏览器打开 `index.html`。页面自动通过 WebSocket 连接服务器，状态指示灯从 **SYS OFFLINE** 变为 **DATA LINK ACTV**，波形和遥测数据开始实时更新。
+直接用浏览器打开 `index.html`。页面自动通过 WebSocket 连接服务器，状态指示灯从 **SYS OFFLINE** 变为 **DATA LINK ACTV**，双通道波形与遥测数据开始实时更新。
 
-> D3.js 已本地化（`d3.v7.min.js`），无需联网即可打开面板。
+> D3.js 已本地化（`d3.v7.min.js`），WebSocket 连接本机 `localhost`——**无需任何网络连接**即可打开面板。
 
 ---
 
-##  使用指南
+## 🧪 运行单元测试
 
-### 切换模型架构
-
-1. 在 [sever.py](sever.py) 中设置 `MODEL_TYPE`（需与训练时一致）：
-   ```python
-   MODEL_TYPE = 'GRU'  # 'RNN' | 'GRU' | 'LSTM'
-   ```
-2. 重启 `python sever.py`。
-3. 刷新浏览器页面，观察不同架构的预测效果差异。
-
-### 调整训练超参数
-
-修改 [train.py](train.py) 第 36–60 行的配置变量：
-
-```python
-MODEL_TYPE = 'LSTM'          # 模型架构
-SEQ_LEN = 500                # 滑窗序列长度（采样点数）
-BATCH_SIZE = 64              # 小批量大小
-HIDDEN_SIZE = 64             # 隐藏层维度
-NUM_LAYERS = 2               # 堆叠 RNN 层数
-DROPOUT = 0.1                # Dropout 比率
-LEARNING_RATE = 0.001        # 初始学习率（Adam）
-TOTAL_EPOCHS = 300           # 最大训练轮数
-EARLY_STOP_PATIENCE = 20     # 早停耐心值
-```
-
-### 运行单元测试
-
-每个 Python 模块均包含 `__main__` 自检代码，可直接验证核心功能：
+每个 Python 模块均包含 `__main__` 自检代码：
 
 ```bash
-python data_loader.py   # 验证信号加载、滑窗切割、DataLoader
-python models.py        # 验证 RNN/GRU/LSTM 实例化与前向传播
+python data_loader.py   # 验证信号加载、滑窗切割、DataLoader 管线
+python models.py        # 验证 RNN/GRU/LSTM 实例化与前向传播 shape
 ```
 
 ---
 
-##  科研意义
+## 🎯 科研意义
 
 ### 为什么需要实时可视化
 
-标量损失函数（MSE、MAE）用一个数字概括模型性能，却掩盖了预测误差的*动力学特征*。一个低 MSE 的模型可能仍然存在：
+标量损失函数（MSE、MAE）用一个数字概括模型性能，却掩盖了预测误差的**动力学特征**。一个低 MSE 的模型仍可能存在：
 
-- **相位滞后** — 预测波形正确但整体在时间轴上偏移。
-- **幅值漂移** — 预测包络相对于真实值逐渐衰减或发散。
-- **瞬态失明** — 在波形突变（如心律失常搏动）时失效，而在规则节律上表现良好。
+- **相位滞后** — 预测波形正确但整体在时间轴上偏移
+- **幅值漂移** — 预测包络相对于真实值逐渐衰减或发散
+- **瞬态失明** — 在波形突变（如心律失常搏动）时失效，而在规则节律上表现良好
 
-示波器面板使这些失效模式一目了然，为定量评估提供了互补的定性调试手段。
-
-### 为什么需要全量数据训练
-
-使用 Record 100 全部约 65 万个采样点（而非仅抽取几百个点）训练，模型学到的是真实的时序结构，而非对单一波形片段的死记硬背。75% 重叠的滑窗策略确保模型在信号的每一种相位对齐上都有充分样本，提升对时间偏移的鲁棒性。
+示波器面板让这些失效模式**一目了然**，为定量评估提供了不可或缺的定性调试手段。
 
 ### 为什么使用统一模型工厂
 
-在保持所有超参数一致的前提下，仅改变循环单元类型（`RNN` → `GRU` → `LSTM`），研究者可以分离出循环架构本身对预测精度的影响。MLP 输出头（hidden → 16 → 1）同时作为消融实验点：将其替换为单层 `nn.Linear`，即可量化额外非线性层的贡献。
+在保持所有超参数一致的前提下，仅改变循环单元类型（`RNN` → `GRU` → `LSTM`），研究者可以**分离出循环架构本身**对预测精度的影响。MLP 输出头（hidden → 16 → 1）同时作为消融实验点：将其替换为单层 `nn.Linear`，即可量化额外非线性层的贡献。
 
 ### 为什么选用真实生理数据基准
 
@@ -166,33 +196,17 @@ MIT-BIH 是生物医学信号处理领域引用量最高的公开数据集之一
 
 ---
 
-##  数据来源
+## 📚 数据来源
 
-> **本项目的训练数据 100% 来自真实生理信号。**
-
-- 数据文件 `100.dat`、`100.hea`、`100.atr` 来自 **MIT-BIH 心律失常数据库**（[PhysioNet](https://physionet.org/content/mitdb/1.0.0/)），是生理信号处理领域最权威的公开基准数据集之一
-- Record 100 包含约 30 分钟的双导联动态心电图，采样率 360 Hz，共约 65 万个采样点
-- 训练使用全部 65 万个点；推理服务器使用一段留出的信号以展示泛化能力
-- 提取 MLII 导联（最常用于心律失常分析的导联）并进行 Z-score 标准化
+数据文件 `100.dat`、`100.hea`、`100.atr` 来自 **MIT-BIH 心律失常数据库**（[PhysioNet](https://physionet.org/content/mitdb/1.0.0/)），是生理信号处理领域最权威的公开基准数据集之一。Record 100 包含约 30 分钟双导联动态心电图，采样率 360 Hz，共约 65 万个采样点。本项目提取 MLII 导联并进行 Z-score 标准化。
 
 ---
 
-##  技术栈
-
-| 层级 | 技术 | 用途 |
-|------|------|------|
-| 深度学习 | PyTorch | RNN / GRU / LSTM 模型训练与推理 |
-| 数据读取 | wfdb | 解析 PhysioNet 标准格式的 MIT-BIH 文件 |
-| 实时通信 | WebSocket（websockets 库） | 服务端→前端低延迟数据推送 |
-| 波形渲染 | D3.js v7（本地副本） | 150 点滑动窗口 SVG 实时绘制 |
-| 前端布局 | Flexbox + CSS3 | 自适应示波器 + 遥测面板布局 |
-
----
-
-##  注意事项
+## 📝 注意事项
 
 - 请先启动 `sever.py`，再打开 `index.html`，否则页面会一直显示 **SYS OFFLINE**
-- `index.html` 使用本地 `d3.v7.min.js`，**无需网络连接**即可打开
+- `index.html` 使用本地 `d3.v7.min.js`，**零外部网络依赖**
 - 训练需要项目根目录下存在 MIT-BIH 数据文件（`100.dat`、`100.hea`、`100.atr`）
 - 全量数据训练在 CPU 上约需 3–5 分钟，建议在有 GPU 的环境下运行以获得最佳体验
+- 切换架构时，请确保 `train.py` 和 `sever.py` 中的 `MODEL_TYPE` 保持一致
 - 推荐使用虚拟环境运行，避免依赖冲突

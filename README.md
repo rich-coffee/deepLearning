@@ -1,89 +1,152 @@
-#  ECG  Oscilloscope — Real-Time Physiological Signal Prediction & Visualization
+# Deep Learning Foundations — RNN / GRU / LSTM for Real-Time Physiological Signal Prediction
 
-> **RNN / GRU / LSTM  single-step forecasting + browser-based oscilloscope monitoring**
->
-> Trains recurrent neural networks on the full MIT-BIH Arrhythmia Database Record 100 and streams predictions to a D3.js real-time HMI panel via WebSocket.
+> **From theory to visualization: PyTorch implementations of classic recurrent architectures, validated on real ECG data and streamed live to a browser-based oscilloscope.**
 
 ---
 
-##  Project Structure
+## 💡 Motivation
+
+While working on embodied intelligence and SLAM systems, I developed a deep curiosity about the foundational building blocks of deep learning. This repo is my hands-on laboratory for understanding recurrent neural architectures from the ground up — implementing, training, and visually diagnosing RNNs, GRUs, and LSTMs on real-world physiological signals.
+
+---
+
+## 🔬 Key Highlights
+
+### Classic Models Reproduced
+
+- **Vanilla RNN (Elman Network)** — the simplest recurrent architecture, serving as the baseline for understanding vanishing-gradient limitations
+- **GRU (Gated Recurrent Unit)** — a lighter gated alternative to LSTM with fewer parameters, balancing efficiency and memory capacity
+- **LSTM (Long Short-Term Memory)** — the workhorse of sequence modeling, with explicit forget/input/output gates for long-range dependency capture
+
+All three architectures share a **unified model factory** (`SleepRNNDemo` in [models.py](models.py)), making it possible to swap cell types with a single string parameter while keeping every other hyperparameter identical — enabling rigorous, controlled architecture comparisons.
+
+### Framework & Stack
+
+| Layer | Technology | Why |
+|---|---|---|
+| **Deep Learning** | PyTorch | Dynamic computation graphs, intuitive debugging, strong GPU support |
+| **Data Pipeline** | `wfdb` + NumPy | Native PhysioNet format parsing for MIT-BIH ECG records |
+| **Real-Time Streaming** | WebSocket (`websockets`) | Low-latency server→browser telemetry push (~30 FPS) |
+| **Frontend Visualization** | D3.js v7 (bundled) | High-performance SVG rendering; zero external dependencies |
+| **Layout** | Vanilla HTML5 / CSS3 Flexbox | Responsive oscilloscope + SCADA-style telemetry panel |
+
+### Training Features
+
+- ✅ Full-dataset training on ~650,000 real ECG samples (MIT-BIH Record 100)
+- ✅ Sliding-window sampling with 75% overlap — the model sees every phase alignment
+- ✅ Time-ordered 80/20 train/val split — no future information leakage
+- ✅ Mini-batch training (GPU-compatible) with gradient clipping
+- ✅ ReduceLROnPlateau learning rate scheduling
+- ✅ Early stopping with configurable patience
+- ✅ Checkpoint resume — survives HPC preemption and power loss
+- ✅ Best-model export (by validation loss), not just last-epoch weights
+
+---
+
+## 🖼️ Visuals
+
+### Training Loss Curves
+
+After running `python train.py`, the console prints per-epoch train/val loss. For publication-quality plots, run:
+
+```python
+# Quick plot snippet — add to the end of train.py or run interactively
+import matplotlib.pyplot as plt
+# (record train_loss / val_loss per epoch into lists, then:)
+plt.plot(train_losses, label='Train Loss')
+plt.plot(val_losses, label='Val Loss')
+plt.xlabel('Epoch'); plt.ylabel('MSE')
+plt.legend(); plt.title(f'{MODEL_TYPE} — MIT-BIH ECG Prediction')
+plt.savefig(f'MIT-BIH_data/result/MIT-BIH_{MODEL_TYPE}_training_curve.png', dpi=150)
+```
+
+### Architecture Comparison
+
+| RNN | GRU | LSTM |
+|---|---|---|
+| ![RNN](MIT-BIH_data/result/MIT-BIH数据RNN训练结果.png) | ![GRU](MIT-BIH_data/result/MIT-BIH数据GRU训练结果.png) | ![LSTM](MIT-BIH_data/result/MIT-BIH数据LSTM训练结果.png) |
+
+> *Generated result images will appear here after training each architecture. Run `python train.py` with `MODEL_TYPE='RNN'`, `'GRU'`, and `'LSTM'` respectively, then save the comparison plots to `MIT-BIH_data/result/`.*
+
+### Live Oscilloscope Demo
+
+![Oscilloscope Demo](MIT-BIH_data/result/oscilloscope_demo.gif)
+
+> *The browser-based oscilloscope renders CH1 (yellow, ground truth) vs CH2 (green dashed, neural network prediction) side by side at ~30 FPS. The right-hand SCADA panel shows real-time error magnitude and link latency.*
+
+**How to see it live:**
+1. `python train.py` — train a model (or use pre-trained weights in `MIT-BIH_data/weight/`)
+2. `python sever.py` — start the WebSocket inference server
+3. Open `index.html` in any modern browser — waveforms appear immediately
+
+---
+
+## 📂 Project Structure
 
 ```
 deepLearning/
-├── train.py                       # Training script: full MIT-BIH data → RNN/GRU/LSTM
-├── models.py                      # Shared model factory: SleepRNNDemo (used by train.py & sever.py)
-├── data_loader.py                 # Data pipeline: sliding-window sampler + PyTorch DataLoader
-├── sever.py                       # WebSocket inference server: streams predictions to browser
-├── index.html                     # Frontend panel: D3.js oscilloscope + telemetry readouts
-├── d3.v7.min.js                   # D3.js v7 local copy (273 KB), no CDN required
-├── requirements.txt               # Python dependencies
-├── .gitignore
-├── 100.dat / 100.hea / 100.atr    # MIT-BIH Arrhythmia Database Record 100 (~30 min ECG)
+├── train.py                        # Training script: full MIT-BIH → RNN/GRU/LSTM
+├── models.py                       # Unified model factory (shared by train & inference)
+├── data_loader.py                  # Signal I/O + sliding-window DataLoader pipeline
+├── sever.py                        # WebSocket inference server (edge-computing terminal)
+├── index.html                      # D3.js oscilloscope + SCADA telemetry panel
+├── d3.v7.min.js                    # D3.js v7 local copy (273 KB, no CDN needed)
+├── requirements.txt                # Python dependencies
+├── 100.dat / 100.hea / 100.atr     # MIT-BIH Arrhythmia Database Record 100
 └── MIT-BIH_data/
-    ├── weight/
-    │   ├── sleep_rnn_weights.pth    # RNN trained weights
-    │   ├── sleep_gru_weights.pth    # GRU trained weights
-    │   └── sleep_lstm_weights.pth   # LSTM trained weights
-    └── result/
-        ├── MIT-BIH数据RNN训练结果.png
-        ├── MIT-BIH数据GRU训练结果.png
-        └── MIT-BIH数据LSTM训练结果.png
+    ├── weight/                     # Pre-trained weights (.pth)
+    │   ├── sleep_rnn_weights.pth
+    │   ├── sleep_gru_weights.pth
+    │   └── sleep_lstm_weights.pth
+    └── result/                     # Training curves & comparison plots
 ```
 
 ---
 
-##  Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
 
 - Python 3.10+
 - A modern browser (Chrome / Edge / Firefox)
+- (Optional) NVIDIA GPU with CUDA 12.4 for faster training
 
-### 1. Install dependencies
+### 1. Install Dependencies
 
 ```bash
-# Create and activate a virtual environment (recommended)
+# Create and activate a virtual environment
 python -m venv .venv
-.venv\Scripts\activate   # Windows
+source .venv/bin/activate      # Linux/macOS
+# .venv\Scripts\activate       # Windows
 
-# ---- CPU-only (no NVIDIA GPU required) ----
+# CPU-only (no GPU required)
 pip install --index-url https://download.pytorch.org/whl/cpu -r requirements.txt
 
-# ---- GPU (CUDA 12.4, recommended for training) ----
+# GPU (CUDA 12.4, recommended for training)
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
 pip install -r requirements.txt
 ```
 
-### 2. Train a model
+### 2. Train a Model
 
 ```bash
 python train.py
 ```
 
-Edit the configuration block at the top of [train.py](train.py) to switch architectures or tune hyperparameters:
-
+Edit `MODEL_TYPE` at the top of [train.py](train.py) to switch architectures:
 ```python
 MODEL_TYPE = 'LSTM'   # 'RNN' | 'GRU' | 'LSTM'
 ```
 
-**Training features:**
-- **Full dataset** — uses all ~650,000 samples from Record 100, sliding-windowed into thousands of sequences
-- **Mini-batch training** — default batch_size=64, GPU-compatible
-- **Validation** — 80/20 chronological split, evaluated every epoch
-- **Early stopping** — terminates when validation loss plateaus (patience=20)
-- **Learning rate scheduling** — ReduceLROnPlateau with automatic decay
-- **Gradient clipping** — max norm = 1.0, prevents explosion in deep RNNs
-- **Checkpoint resume** — interrupted runs automatically continue from last epoch
-- **Best-model export** — saves the weight with lowest validation loss
+Training takes ~3–5 minutes on CPU for the full dataset; significantly faster on GPU.
 
-### 3. Start the WebSocket inference server
+### 3. Launch the Inference Server
 
 ```bash
 python sever.py
 ```
 
 Expected output:
-
 ```
 =============================================
   [SYS] 工业级边缘计算遥测终端已启动
@@ -93,105 +156,53 @@ Expected output:
 =============================================
 ```
 
-### 4. Open the monitoring panel
+### 4. Open the Monitoring Panel
 
-Open `index.html` directly in a browser. The panel auto-connects via WebSocket; the status indicator changes from **SYS OFFLINE** to **DATA LINK ACTV** and waveforms begin rendering in real time.
+Open `index.html` directly in a browser. The status indicator switches from **SYS OFFLINE** → **DATA LINK ACTV**, and dual-channel waveforms begin rendering in real time.
 
-> D3.js is bundled locally (`d3.v7.min.js`) — no internet connection is required to open the panel.
+> No internet connection is required — D3.js is bundled locally, and the WebSocket connects to `localhost`.
 
 ---
 
-##  How to Use
+## 🧪 Run Unit Tests
 
-### Switching model architectures
-
-1. Set `MODEL_TYPE` in [sever.py](sever.py) (must match the trained weights):
-   ```python
-   MODEL_TYPE = 'GRU'  # 'RNN' | 'GRU' | 'LSTM'
-   ```
-2. Restart `python sever.py`.
-3. Refresh the browser to observe prediction differences across architectures.
-
-### Tuning hyperparameters
-
-Edit the configuration block in [train.py](train.py) (lines ~36–60):
-
-```python
-MODEL_TYPE = 'LSTM'          # architecture
-SEQ_LEN = 500                # sliding-window length (samples)
-BATCH_SIZE = 64              # mini-batch size
-HIDDEN_SIZE = 64             # recurrent state dimension
-NUM_LAYERS = 2               # stacked RNN depth
-DROPOUT = 0.1                # dropout ratio
-LEARNING_RATE = 0.001        # initial learning rate (Adam)
-TOTAL_EPOCHS = 300           # maximum epochs
-EARLY_STOP_PATIENCE = 20     # early-stopping patience
-```
-
-### Running unit tests
-
-Each Python module includes a `__main__` block that validates its core functionality:
+Each Python module includes `__main__` self-checks:
 
 ```bash
-python data_loader.py   # verify signal loading, windowing, DataLoader
-python models.py        # verify RNN/GRU/LSTM instantiation & forward pass
+python data_loader.py   # Verify signal loading, windowing, DataLoader pipeline
+python models.py        # Verify RNN/GRU/LSTM instantiation & forward pass shapes
 ```
 
 ---
 
-##  Research Significance
+## 🎯 Research Significance
 
-### Why real-time visualization matters
+### Why Real-Time Visualization Matters
 
-Scalar loss metrics (MSE, MAE) provide a single number that summarizes model performance, but they obscure the *dynamics* of prediction error. A model that achieves low MSE may still exhibit:
+Scalar loss metrics (MSE, MAE) summarize performance in one number, but they hide the *dynamics* of prediction error. A model with low MSE can still exhibit:
 
-- **Phase lag** — the prediction tracks the correct shape but is consistently shifted in time.
-- **Amplitude drift** — the prediction envelope decays or explodes relative to the ground truth.
-- **Transient blindness** — the model fails during sudden waveform changes (e.g., arrhythmic beats) while performing well on regular rhythms.
+- **Phase lag** — the prediction tracks the correct shape but is shifted in time
+- **Amplitude drift** — the envelope decays or explodes relative to ground truth
+- **Transient blindness** — failure during sudden waveform changes (e.g., arrhythmic beats) despite good performance on regular rhythms
 
-The oscilloscope panel makes these failure modes immediately visible, enabling qualitative debugging that complements quantitative evaluation.
+The oscilloscope panel makes these failure modes **immediately visible**, providing qualitative debugging that complements quantitative evaluation.
 
-### Why full-dataset training
+### Why a Real Physiological Benchmark
 
-Using all ~650,000 samples from MIT-BIH Record 100 (rather than subsampling a few hundred points) produces models that learn genuine temporal structure rather than memorizing a single waveform snippet. The 75%-overlap sliding window ensures the model sees the signal at every possible phase alignment, improving robustness to temporal shift.
-
-### Why a unified model factory
-
-By keeping all hyperparameters identical and changing only the cell type (`RNN` → `GRU` → `LSTM`), researchers can isolate the effect of the recurrent architecture on forecasting accuracy. The MLP output head (hidden → 16 → 1) also serves as an ablation point: replace it with a single `nn.Linear` to quantify how much the extra non-linearity contributes.
-
-### Why a real physiological benchmark
-
-MIT-BIH is one of the most widely cited datasets in biomedical signal processing. Training on real ECG data — rather than synthetic sine waves — ensures that the learned dynamics reflect actual biological signal characteristics, making the results relevant to real-world applications such as anomaly detection, compression, and denoising.
+MIT-BIH is one of the most widely cited datasets in biomedical signal processing. Training on real ECG data — not synthetic sine waves — ensures the learned dynamics reflect actual biological signal characteristics, making the results relevant to anomaly detection, denoising, and compression applications.
 
 ---
 
-##  Data Source
+## 📚 Data Source
 
-> **All training data comes from real physiological signals.**
-
-- Data files `100.dat`, `100.hea`, `100.atr` are from the **MIT-BIH Arrhythmia Database** ([PhysioNet](https://physionet.org/content/mitdb/1.0.0/)), one of the most authoritative public benchmarks in physiological signal processing.
-- Record 100 contains approximately 30 minutes of two-lead ambulatory ECG, sampled at 360 Hz, totaling ~650,000 sample points.
-- Training uses all 650,000 points; the inference server streams a held-out segment to demonstrate generalization.
-- The MLII lead (most commonly used for arrhythmia analysis) is extracted and Z-score normalized.
+Data files `100.dat`, `100.hea`, `100.atr` come from the **MIT-BIH Arrhythmia Database** ([PhysioNet](https://physionet.org/content/mitdb/1.0.0/)), a gold-standard public benchmark in physiological signal processing. Record 100 contains ~30 minutes of dual-lead ambulatory ECG sampled at 360 Hz (~650,000 sample points). The MLII lead is extracted and Z-score normalized.
 
 ---
 
-##  Technology Stack
+## 📝 Notes
 
-| Layer | Technology | Role |
-|-------|------------|------|
-| Deep learning | PyTorch | RNN / GRU / LSTM training & inference |
-| Data I/O | wfdb | Parse PhysioNet-format MIT-BIH files |
-| Real-time streaming | WebSocket (websockets library) | Low-latency server→browser data push |
-| Waveform rendering | D3.js v7 (local copy) | 150-point sliding-window SVG rendering |
-| Frontend layout | Flexbox + CSS3 | Responsive oscilloscope + telemetry panel |
-
----
-
-##  Notes
-
-- Start `sever.py` before opening `index.html`, or the panel will display **SYS OFFLINE**.
-- `index.html` uses a local `d3.v7.min.js` — no internet connection is needed.
+- Start `sever.py` before opening `index.html`, or the panel will show **SYS OFFLINE**.
+- `index.html` uses a local copy of `d3.v7.min.js` — zero external network dependencies.
 - Training requires the MIT-BIH data files (`100.dat`, `100.hea`, `100.atr`) in the project root.
 - Full-dataset training takes ~3–5 minutes on CPU; a GPU significantly reduces wall-clock time.
-- A virtual environment is recommended to avoid dependency conflicts.
+- Set `MODEL_TYPE` consistently in both `train.py` and `sever.py` when switching architectures.
