@@ -67,12 +67,6 @@ plt.legend(); plt.title(f'{MODEL_TYPE} — MIT-BIH 心电预测 Loss 曲线')
 plt.savefig(f'MIT-BIH_data/result/MIT-BIH_{MODEL_TYPE}_training_curve.png', dpi=150)
 ```
 
-### 实时示波器演示
-
-![示波器演示](MIT-BIH_data/result/oscilloscope_demo.gif)
-
-> *浏览器端示波器以约 30 FPS 的刷新率实时渲染 CH1（黄色实线，真实波形）与 CH2（绿色虚线，神经网络预测值）的双通道对比。右侧 SCADA 面板同步显示实时绝对误差与链路延迟。*
-
 **立即体验：**
 1. `python train.py` — 训练模型（或直接使用 `MIT-BIH_data/weight/` 中的预训练权重）
 2. `python sever.py` — 启动 WebSocket 推理服务器

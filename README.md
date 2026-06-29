@@ -68,12 +68,6 @@ plt.savefig(f'MIT-BIH_data/result/MIT-BIH_{MODEL_TYPE}_training_curve.png', dpi=
 
 > *Generated result images will appear here after training each architecture. Run `python train.py` with `MODEL_TYPE='RNN'`, `'GRU'`, and `'LSTM'` respectively, then save the comparison plots to `MIT-BIH_data/result/`.*
 
-### Live Oscilloscope Demo
-
-![Oscilloscope Demo](MIT-BIH_data/result/oscilloscope_demo.gif)
-
-> *The browser-based oscilloscope renders CH1 (yellow, ground truth) vs CH2 (green dashed, neural network prediction) side by side at ~30 FPS. The right-hand SCADA panel shows real-time error magnitude and link latency.*
-
 **How to see it live:**
 1. `python train.py` — train a model (or use pre-trained weights in `MIT-BIH_data/weight/`)
 2. `python sever.py` — start the WebSocket inference server
