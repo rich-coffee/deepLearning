@@ -50,7 +50,7 @@ from data_loader import get_dataloaders
 # 配置：通过修改变量一键切换 RNN / GRU / LSTM
 # 可选值: 'RNN' | 'GRU' | 'LSTM'
 # ==========================================
-MODEL_TYPE = 'LSTM'
+MODEL_TYPE = 'GRU'
 
 # ---- 数据配置 ----
 SEQ_LEN = 500                # 序列长度（滑动窗口大小，单位：采样点）

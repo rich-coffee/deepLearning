@@ -16,3 +16,5 @@ __pycache__/
 # OS
 Thumbs.db
 .DS_Store
+
+MIT-BIH_data/result/oscilloscope_demo.gif

@@ -48,7 +48,7 @@ from data_loader import load_mitbih_signal
 # ==========================================
 # 工业现场配置 — SCADA 遥测终端参数
 # ==========================================
-MODEL_TYPE = 'LSTM'  # 可选: 'RNN' | 'GRU' | 'LSTM'，与训练脚本保持一致
+MODEL_TYPE = 'GRU'  # 可选: 'RNN' | 'GRU' | 'LSTM'，与训练脚本保持一致
 WEIGHTS_PATH = f'MIT-BIH_data\\weight\\sleep_{MODEL_TYPE.lower()}_weights.pth'
 HOST = "127.0.0.1"
 PORT = 8765
