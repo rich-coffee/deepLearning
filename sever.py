@@ -1,81 +1,98 @@
 """
 =============================================================================
- 深度学习期末作业 — WebSocket 实时推理服务器
- 加载 MIT-BIH 数据训练的 RNN/GRU/LSTM 模型，向前端推送实时预测波形
-=============================================================================
-【文件说明】
-  sever.py          本文件 — WebSocket 推理服务器，加载预训练权重并推送预测流
-  train.py          训练脚本 — 通过 MODEL_TYPE 变量切换 RNN/GRU/LSTM 架构
-  index.html        前端监控面板 — D3.js 示波器 + SCADA 遥测，d3.v7.min.js 本地化免 CDN
-  compare_models.py 模型横向对比工具 — 一键训练三模型，生成 7 张对比图表 + JSON 数据
+ WebSocket Real-time Inference Server for Physiological Signal Prediction
 
-【自定义亮点】
-  1. 独立权重路径 — 从 MIT-BIH_data/weight/ 读取预训练模型，与训练模块解耦
-  2. 模拟 SCADA 遥测 — 构造工业标准的 JSON 数据帧 + 模拟网络延迟
-  3. 容错设计 — 权重文件缺失时自动降级为随机权重演示，不中断服务
-  4. 可切换模型 — 修改 MODEL_TYPE 变量即可加载不同架构的预训练权重
+ Loads a trained RNN/GRU/LSTM model and streams single-step predictions to a
+ browser-based oscilloscope panel via WebSocket. Designed as a lightweight
+ edge-computing telemetry terminal for research prototyping.
+
+ How to use:
+   1. Train a model first:  python train.py
+   2. Start this server:    python sever.py
+   3. Open index.html in a browser to view the live waveform display.
+
+ Configuration (top of file):
+   MODEL_TYPE  — 'RNN' | 'GRU' | 'LSTM', must match the trained weights.
+   WEIGHTS_PATH — path to the .pth checkpoint (auto-derived from MODEL_TYPE).
+   DEMO_SIGNAL_START / DEMO_SIGNAL_LENGTH — which segment of the MIT-BIH
+     record to stream; use an offset far from the training split to
+     demonstrate generalization.
+
+ Key features:
+   - Real physiological data — streams from MIT-BIH Record 100 ECG.
+   - Graceful degradation — if weights or data files are missing, falls back
+     to untrained weights or synthetic signals rather than crashing.
+   - SCADA-style JSON telemetry frames with simulated edge latency.
+
+ Research significance:
+   This server closes the sense→predict→visualize loop. By streaming a held-out
+   segment of real physiological data through a trained recurrent model, it
+   provides qualitative, frame-by-frame insight into the model's dynamic
+   behavior — something aggregate metrics (MSE, MAE) cannot capture. Phase
+   errors, amplitude drift, and transient failures become immediately visible
+   on the oscilloscope, guiding further model refinement.
 =============================================================================
 """
 import torch
-import torch.nn as nn
 import numpy as np
 import asyncio
 import json
 import time
 import random
+import sys
+import os
+
+from models import SleepRNNDemo
+from data_loader import load_mitbih_signal
 
 # ==========================================
 # 工业现场配置 — SCADA 遥测终端参数
 # ==========================================
-MODEL_TYPE = 'RNN'  # 可选: 'RNN' | 'GRU' | 'LSTM'，与训练脚本保持一致
-# 【亮点】从独立目录加载 MIT-BIH 数据训练的权重，路径与训练脚本输出一致
+MODEL_TYPE = 'LSTM'  # 可选: 'RNN' | 'GRU' | 'LSTM'，与训练脚本保持一致
 WEIGHTS_PATH = f'MIT-BIH_data\\weight\\sleep_{MODEL_TYPE.lower()}_weights.pth'
 HOST = "127.0.0.1"
 PORT = 8765
 
-# 1. 模型结构 — 与 train.py 保持完全一致的架构定义
-class SleepRNNDemo(nn.Module):
-    """统一模型工厂：支持 RNN / GRU / LSTM 三种循环神经网络"""
-    def __init__(self, cell_type='LSTM', input_size=1, hidden_size=32, num_layers=1, output_size=1):
-        super(SleepRNNDemo, self).__init__()
-        self.cell_type = cell_type.upper()
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
-        if self.cell_type == 'RNN':
-            self.rnn_core = nn.RNN(input_size, hidden_size, num_layers, batch_first=True)
-        elif self.cell_type == 'GRU':
-            self.rnn_core = nn.GRU(input_size, hidden_size, num_layers, batch_first=True)
-        elif self.cell_type == 'LSTM':
-            self.rnn_core = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
-        self.fc = nn.Linear(hidden_size, output_size)
+# 推理演示使用的信号段（MIT-BIH Record 100 中取一段未参与训练的区间作为演示）
+DEMO_SIGNAL_START = 500000   # 信号起始位置（远离默认训练区间）
+DEMO_SIGNAL_LENGTH = 3000    # 演示数据点数
 
-    def forward(self, x):
-        device = x.device
-        batch_size = x.size(0)
-        h0 = torch.zeros(self.num_layers, batch_size, self.hidden_size).to(device)
-        if self.cell_type == 'LSTM':
-            c0 = torch.zeros(self.num_layers, batch_size, self.hidden_size).to(device)
-            out, (hn, cn) = self.rnn_core(x, (h0, c0))
-        else:
-            out, hn = self.rnn_core(x, h0)
-        return self.fc(out)
 
-# 2. WebSocket 实时遥测数据流 — 模拟工业 SCADA 终端
+# 1. WebSocket 实时遥测数据流 — 使用真实 MIT-BIH 生理信号
 async def stream_data(websocket):
     print(f"\n[终端接入] 客户端已连接。开始下发 {MODEL_TYPE} 遥测数据...")
 
     # 初始化模型并加载预训练权重
     model = SleepRNNDemo(cell_type=MODEL_TYPE)
+    model.eval()
+
+    weights_loaded = False
     try:
         model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=torch.device('cpu')))
-        model.eval()
+        weights_loaded = True
         print(f"[系统] 成功加载 MIT-BIH 预训练权重: {WEIGHTS_PATH}")
     except FileNotFoundError:
         print(f"[警告] 未找到 {WEIGHTS_PATH}，将使用未训练的初始权重进行仿真演示。")
 
-    # 构造复合仿真信号（含正弦基波 + 余弦谐波 + 高斯噪声，模拟真实生理波形特征）
-    t = np.linspace(0, 100, 3000)
-    test_signal = np.sin(t) + 0.5 * np.cos(t * 2.5) + np.random.normal(0, 0.05, t.shape)
+    # 加载真实 MIT-BIH 生理信号作为演示数据流
+    try:
+        full_signal = load_mitbih_signal('100')
+        # 截取信号的一个片段（避免与训练数据重合，展示泛化能力）
+        start = min(DEMO_SIGNAL_START, len(full_signal) - DEMO_SIGNAL_LENGTH - 1)
+        test_signal = full_signal[start:start + DEMO_SIGNAL_LENGTH + 1]
+        signal_source = f"MIT-BIH Record 100 (offset={start})"
+    except Exception:
+        # 极端情况：数据文件不存在，回退到合成信号
+        print("[警告] 无法读取 MIT-BIH 数据文件，使用合成信号作为回退方案。")
+        t = np.linspace(0, 100, DEMO_SIGNAL_LENGTH + 1)
+        test_signal = np.sin(t) + 0.5 * np.cos(t * 2.5) + np.random.normal(0, 0.05, t.shape)
+        signal_source = "合成信号 (sin+cos+noise)"
+
+    print(f"[数据源] {signal_source}")
+    if weights_loaded:
+        print(f"[推理] 使用训练好的 {MODEL_TYPE} 模型进行单步预测")
+    else:
+        print(f"[推理] 使用未训练的 {MODEL_TYPE} 模型 — 预测结果仅供参考")
 
     try:
         with torch.no_grad():
@@ -85,7 +102,7 @@ async def stream_data(websocket):
                 # 单步推理：输入当前采样点，预测下一采样点
                 input_point = torch.tensor([[[test_signal[i]]]], dtype=torch.float32)
                 pred_point = model(input_point).item()
-                actual_point = test_signal[i+1]
+                actual_point = test_signal[i + 1]
 
                 # 模拟工业边缘计算延迟（真实计算耗时 + 网络传输抖动）
                 calc_time = (time.time() - start_time) * 1000
@@ -107,17 +124,19 @@ async def stream_data(websocket):
     except Exception as e:
         print(f"[断开] 客户端连接中断或发生异常: {e}")
 
+
 async def main():
     import websockets
     async with websockets.serve(stream_data, HOST, PORT):
         print("=============================================")
         print(f"  [SYS] 工业级边缘计算遥测终端已启动")
         print(f"  [SYS] 当前挂载计算核心: {MODEL_TYPE} 神经网络")
-        print(f"  [SYS] 数据来源: MIT-BIH 心律失常数据库 Record 100")
+        print(f"  [SYS] 数据来源: MIT-BIH 心律失常数据库 Record 100 (真实生理信号)")
         print(f"  [SYS] 监听端口: ws://{HOST}:{PORT}")
         print("=============================================")
         print("等待前端监控面板接入...")
         await asyncio.Future()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

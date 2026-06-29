@@ -1,22 +1,42 @@
 <!DOCTYPE html>
 <!--
 =============================================================================
- 深度学习期末作业 — 工业级神经示波器 SCADA 监控面板
- 前端：D3.js 实时渲染 + WebSocket 数据流 + 工业终端视觉风格
-=============================================================================
-【依赖说明】
-  - d3.v7.min.js: D3.js v7 本地副本（273 KB）
-    原 CDN 地址 https://d3js.org/d3.v7.min.js 在中国大陆部分网络下无法访问，
-    因此下载到项目根目录本地引用，彻底消除对外网 CDN 的依赖。
-  - WebSocket: 连接 ws://127.0.0.1:8765（本机服务），不依赖外网。
+ Neural Oscilloscope — Real-time Physiological Signal Monitoring Panel
+ Frontend: D3.js rendering + WebSocket data stream + industrial HMI styling
 
-【自定义视觉亮点】
-  1. 纯黑底色 + 白色虚线网格 — 模拟专业示波器暗场显示效果
-  2. CH1 黄色实线 (真实波形) + CH2 绿色虚线 (预测波形) — 工业信号标准配色
-  3. 右侧 SCADA 遥测面板 — 实时数字读数 + 误差监控
-  4. WebSocket 断线自动重连 + 状态指示灯 — 模拟工业设备在线/离线状态机
-  5. D3.js 高性能波形渲染 — 150 点滑动窗口，30 FPS 刷新率
-  6. 自适应布局 — flex 布局，左侧示波器 3:1 右侧面板
+ Overview:
+   This HTML file implements a browser-based oscilloscope that visualizes raw
+   physiological signals (e.g., EEG/ECG) against neural network predictions in
+   real time. It is designed for research scenarios where immediate visual
+   feedback on model performance is critical — for instance, when comparing a
+   learned dynamics model against live sensor readings.
+
+ How to use:
+   1. Start the WebSocket inference server:  python sever.py
+   2. Open this file in any modern browser (Chrome / Edge / Firefox).
+   3. The panel auto-connects to ws://127.0.0.1:8765 and begins rendering.
+
+ Dependencies:
+   - d3.v7.min.js : D3.js v7 local copy (273 KB). Originally served from CDN
+     (d3js.org), now bundled locally to eliminate external network dependencies.
+   - WebSocket   : Connects to ws://127.0.0.1:8765 (localhost), no internet required.
+
+ Visual design (research-oriented HMI):
+   1. Black background + white dashed graticule — emulates a physical oscilloscope.
+   2. CH1 yellow solid line (ground truth) + CH2 green dashed line (prediction) —
+      standard industrial signal color coding for intuitive human review.
+   3. Right-side SCADA telemetry panel — digital readouts + error monitoring.
+   4. WebSocket auto-reconnect with status LED — emulates device online/offline
+      state machine; resilient to transient network drops.
+   5. D3.js high-performance rendering — 150-point sliding window, ~30 FPS.
+   6. Flex layout — 3:1 left oscilloscope / right telemetry split, responsive.
+
+ Research significance:
+   Real-time visualization closes the loop between model output and human
+   intuition. In physiological signal modeling, seeing prediction waveforms
+   side-by-side with ground truth allows researchers to quickly identify
+   failure modes (phase lag, amplitude drift, missed anomalies) that scalar
+   loss metrics alone may obscure.
 =============================================================================
 -->
 <html>
@@ -33,7 +53,7 @@
       padding: 15px;
       gap: 15px;
     }
-    /* === 自定义视觉修改: 黑色底面 + 白色虚线网格(比 CH2 绿色虚线更稀疏, dasharray 2,8 vs 4,4) === */
+    /* 黑色底面 + 白色虚线网格 (dasharray 2,8 — sparser than waveform dashes) */
     .oscilloscope-panel {
       flex: 3;
       background-color: #000000;
@@ -60,7 +80,7 @@
       padding: 15px;
       border-radius: 2px;
     }
-    /* === 自定义视觉修改: 面板左边框颜色跟随波形 — CH1 黄色, CH2 绿色 === */
+    /* 面板左边框颜色跟随波形 — CH1 黄色, CH2 绿色 */
     .data-block.ch1 { border-left-color: #ffdd00; }
     .data-block.ch2 { border-left-color: #00ff00; }
     .data-block.alert { border-left-color: #ffaa00; }
@@ -74,26 +94,25 @@
       font-weight: bold;
       font-family: 'Courier New', Courier, monospace;
     }
-    /* === MODIFIED: 数值颜色跟随 === */
+    /* 数值颜色跟随通道 */
     .data-value.ch1-text { color: #ffdd00; text-shadow: 0 0 8px rgba(255,221,0,0.4); }
     .data-value.ch2-text { color: #00ff00; text-shadow: 0 0 8px rgba(0,255,0,0.4); }
     .data-value.alert-text { color: #ffaa00; }
     /* D3.js SVG 样式 */
     svg { width: 100%; height: 100%; display: block; }
-    /* === MODIFIED: 白色虚线网格(比CH2绿色虚线更稀疏) === */
+    /* 白色虚线网格（比 CH2 绿色虚线更稀疏） */
     .grid line { stroke: #444; stroke-width: 1px; stroke-dasharray: 2,8; }
     .grid path { stroke-width: 0; }
     .axis text { fill: #888; font-size: 10px; font-family: monospace; }
     .axis path, .axis line { stroke: #555; }
-    /* 波形线条样式（带辉光） */
-    /* === MODIFIED: 蓝色 → 黄色 === */
+    /* 波形线条样式（带辉光） — CH1 黄色实线 */
     .line-ch1 {
       fill: none;
       stroke: #ffdd00;
       stroke-width: 2px;
       filter: drop-shadow(0 0 4px rgba(255,221,0,0.8));
     }
-    /* === MODIFIED: 红色虚线 → 绿色虚线 === */
+    /* CH2 绿色虚线 */
     .line-ch2 {
       fill: none;
       stroke: #00ff00;
@@ -158,15 +177,25 @@
   const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
   // 比例尺
   const xScale = d3.scaleLinear().domain([0, MAX_POINTS - 1]).range([0, innerWidth]);
-  const yScale = d3.scaleLinear().domain([-2.5, 2.5]).range([innerHeight, 0]);
+  // 动态 Y 轴范围 — 初始设为宽域，随数据自动扩展，保证极大值极小值都包含在内
+  let yMin = -5, yMax = 5;
+  const yScale = d3.scaleLinear().domain([yMin, yMax]).range([innerHeight, 0]);
+  // 网格与坐标轴容器（后续随 Y 轴范围更新需重绘）
+  const gridGroup = g.append("g").attr("class", "grid");
+  const axisGroup = g.append("g").attr("class", "axis");
   // 绘制暗黑工业网格
-  g.append("g").attr("class", "grid")
-    .call(d3.axisLeft(yScale).ticks(10).tickSize(-innerWidth).tickFormat(""));
-  g.append("g").attr("class", "grid")
-    .attr("transform", `translate(0,${innerHeight})`)
-    .call(d3.axisBottom(xScale).ticks(20).tickSize(-innerHeight).tickFormat(""));
-  // 坐标轴数值
-  g.append("g").attr("class", "axis").call(d3.axisLeft(yScale).ticks(5));
+  function redrawGridAndAxis() {
+    yScale.domain([yMin, yMax]);
+    gridGroup.selectAll("*").remove();
+    gridGroup.call(d3.axisLeft(yScale).ticks(10).tickSize(-innerWidth).tickFormat(""));
+    g.selectAll(".grid-bottom").remove();
+    g.append("g").attr("class", "grid grid-bottom")
+      .attr("transform", `translate(0,${innerHeight})`)
+      .call(d3.axisBottom(xScale).ticks(20).tickSize(-innerHeight).tickFormat(""));
+    axisGroup.selectAll("*").remove();
+    axisGroup.call(d3.axisLeft(yScale).ticks(5));
+  }
+  redrawGridAndAxis();
   // 定义线条生成器
   const lineCh1 = d3.line().x((d, i) => xScale(i)).y(d => yScale(d.ch1_actual));
   const lineCh2 = d3.line().x((d, i) => xScale(i)).y(d => yScale(d.ch2_predict));
@@ -212,6 +241,29 @@
       dataBuffer.push(payload);
       if (dataBuffer.length > MAX_POINTS) {
         dataBuffer.shift();
+      }
+
+      // 动态 Y 轴自动扩域 — 确保极大值极小值始终可见（含 15% 边距）
+      let bufMin = Infinity, bufMax = -Infinity;
+      dataBuffer.forEach(d => {
+        if (d.ch1_actual < bufMin) bufMin = d.ch1_actual;
+        if (d.ch1_actual > bufMax) bufMax = d.ch1_actual;
+        if (d.ch2_predict < bufMin) bufMin = d.ch2_predict;
+        if (d.ch2_predict > bufMax) bufMax = d.ch2_predict;
+      });
+      const padding = Math.max((bufMax - bufMin) * 0.15, 0.2);
+      const newMin = bufMin - padding;
+      const newMax = bufMax + padding;
+      if (newMin < yMin || newMax > yMax) {
+        yMin = Math.min(yMin, newMin);
+        yMax = Math.max(yMax, newMax);
+        // 向整数取整，方便读数
+        yMin = Math.floor(yMin * 2) / 2;   // 步进 0.5
+        yMax = Math.ceil(yMax * 2) / 2;
+        redrawGridAndAxis();
+        // 重新映射现有路径
+        lineCh1.y(d => yScale(d.ch1_actual));
+        lineCh2.y(d => yScale(d.ch2_predict));
       }
 
       // D3.js 高性能增量重绘（仅更新路径数据，不重建 DOM）
